@@ -1,3 +1,7 @@
+#The additional feature I have added is subnetting for subnet class A.
+
+
+
 #Dictionary containing attributes speciffic to each Class.
 classes={
     'A':{
@@ -86,7 +90,7 @@ def get_CIDR(subnet_mask_address):
 #Calcuates the number of subnets by counting the number of ones in the host bytes and putting that value over the power of two.
 def get_subnets(subnet_mask, network_class):
 
-    if network_class == "C":
+    if network_class == "C" or subnet_mask[0:2] == ['11111111', '11111111']: #checks for class C or if it is a class B address with a subnet_mask greater than /22.
         return str(2 ** "".join(subnet_mask[2:3]).count("1")) #Gets the class C host bytes, counts the ones, and puts the value over the power of two.
 
     elif network_class == "B":
@@ -114,22 +118,29 @@ def get_host_per_subnet(subnet_mask, network_class):
 
 #Gets all the valid subnets for Class A, B, and C.
 def get_valid_subnet(ip_addr_bytes, network_class, subnet_mask):
+    subnet_mask = subnet_mask.split(".")
 
-    if network_class == "C": #This identifys what class the IP address belongs to so we can assign the correct postfixes and get the correct portion of the subnet mask to calculate the valid addresses.
-        byte_limit = (subnet_mask.split("."))[3] #This gives us the host value of the byte directly after the network_bytes, this allows us to find the value that tells our loop below when to stop.
+    if network_class == "C" or subnet_mask[0:3] == ['255', '255', '255']: #This identifies class C but also looks for the exception when the address is of class B and the subnet_mask is greater then /22.
+        ip_addr_bytes[3] = "0" #formats the ip address byte to add to dictionary with ending X.X.X.0
+        byte_limit = subnet_mask[3] #This gives us the host value of the byte directly after the network_bytes, this allows us to find the value that tells our loop below when to stop.
         postfix = "" #This applies the appropriate ending to the subnet depending on the class the IP address belongs to.
         index = 3 #provides the appropriate index to format the subnet correctly.
 
     elif network_class == "B": #This identifys what class the IP address belongs to so we can assign the correct postfixes and get the correct portion of the subnet mask to calculate the valid addresses.
-        byte_limit = (subnet_mask.split("."))[2] #This gives us the host value of the byte directly after the network_bytes, this allows us to find the value that tells our loop below when to stop.
+        ip_addr_bytes[2] = "0"
+        ip_addr_bytes[3] = "0" #formats the ip address byte to add to dictionary with ending X.X.0.0
+        byte_limit = subnet_mask[2] #This gives us the host value of the byte directly after the network_bytes, this allows us to find the value that tells our loop below when to stop.
         postfix = "." + ip_addr_bytes[3] #This applies the appropriate ending to the subnet depending on the class the IP address belongs to.
         index = 2 #provides the appropriate index to format the subnet correctly.
 
     elif network_class == "A": #This identifys what class the IP address belongs to so we can assign the correct postfixes and get the correct portion of the subnet mask to calculate the valid addresses.
-        ip_addr_bytes[1] = "0" # This formats the IP address to create a first valid address.
-        byte_limit = (subnet_mask.split("."))[1] #This gives us the host value of the byte directly after the network_bytes, this allows us to find the value that tells our loop below when to stop.
+        ip_addr_bytes[1] = "0"
+        ip_addr_bytes[2] = "0"
+        ip_addr_bytes[3] = "0" #formats the ip address byte to add to dictionary with ending X.0.0.0
+        byte_limit = subnet_mask[1] #This gives us the host value of the byte directly after the network_bytes, this allows us to find the value that tells our loop below when to stop.
         postfix = "." + ip_addr_bytes[2] +"." + ip_addr_bytes[3] #This applies the appropriate ending to the subnet depending on the class the IP address belongs to.
         index = 1 #provides the appropriate index to format the subnet correctly.
+
 
     valid_subnet_list = [".".join(ip_addr_bytes)] #Here we add the first formatted valid ip address into the list, format is determined by the boolean statements above which identifies the class of the IP address.
 
@@ -143,14 +154,14 @@ def get_valid_subnet(ip_addr_bytes, network_class, subnet_mask):
 
 
 #Gets a list of broadcasting addresses for the IP addresses
-def get_broadcasting_address(valid_subnet, ip_addr_bytes, network_class):
+def get_broadcasting_address(valid_subnet, ip_addr_bytes, network_class, subnet_mask):
     broadcast_list = [] #Contains all broadcasting address.
 
     #Gets the values from valid subnet to calculate the broadcast address.
-    for address in valid_subnet[1:4]:
+    for address in valid_subnet[1:]:
         address = address.split(".") #splits each byte.
 
-        if network_class == "C": #Checks the class of the IP address.
+        if network_class == "C" or subnet_mask.split(".")[0:3] == ['255', '255', '255']: #Checks the class of the IP address and subnet mask value
             broadcast_list.append(".".join(address[0:3])+ "." + str(int(address[3]) - 1)) #Takes the subnet value,starting from the second in the list, and subtracts one from the last byte.
             index = 3 #Index to format the final broadcating address below.
             postfix = ".255" # postfix to format the final broadcating address below.
@@ -220,9 +231,6 @@ def get_supernet_stats(addresses):
    print("Network: " + network_mask) #Formatting for output.
 
 
-#get_supernet_stats(["205.100.0.0","205.100.1.0","205.100.2.0","205.100.3.0"])
-
-
 #SUBNETTING MODULE.
 def get_subnet_stats(ip_addr,subnet_mask):
    ip_addr_bytes = ip_addr.split(".")
@@ -246,7 +254,7 @@ def get_subnet_stats(ip_addr,subnet_mask):
    print("Valid subnets: {}".format(str(valid_subnet)))
 
    #Get the valid Broadcasting addresses
-   broadcast_address = get_broadcasting_address(valid_subnet, ip_addr_bytes, network_class)
+   broadcast_address = get_broadcasting_address(valid_subnet, ip_addr_bytes, network_class, subnet_mask)
    print("Broadcast addresses: {}".format(str(broadcast_address)))
 
    #Gets the first address
@@ -256,10 +264,6 @@ def get_subnet_stats(ip_addr,subnet_mask):
    #Gets the last address.
    last_address = get_last_address(broadcast_address)
    print("Last addresses: {}".format(str(last_address)))
-
-#get_subnet_stats("127.16.0.0", "255.192.0.0")
-#get_subnet_stats("172.16.0.0","255.255.192.0")
-#get_subnet_stats("192.168.10.0","255.255.255.192")
 
 
 #CLASS MODULE.
@@ -284,7 +288,17 @@ def get_class_stats(ip_addr):
     print("First address:" + classes[network_class]["first_address"])
     print("Last address:" + classes[network_class]["last_address"])
 
-
+#Test cases for get_class_stats.
 #get_class_stats("200.206.18.7")
 #get_class_stats("136.206.18.7")
 #get_class_stats("240.192.16.5")
+
+#Test cases for get_subnet_stats.
+#get_subnet_stats("136.209.19.9","255.255.255.192") #/26
+#get_subnet_stats("136.209.19.9","255.255.252.0") #/22
+#get_subnet_stats("136.209.19.9","255.255.192.0")
+#get_subnet_stats("127.16.0.0", "255.192.0.0")
+#get_subnet_stats("192.168.10.0","255.255.255.192")
+
+#Test case for get_subnet_stats.
+#get_supernet_stats(["205.100.0.0","205.100.1.0","205.100.2.0","205.100.3.0"])
